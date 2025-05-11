@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <title>地図ピンとルート検索</title>
 
-  <!-- LeafletとRouting Machine -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- Routing -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
   <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
@@ -40,6 +42,20 @@
       border-radius: 6px;
       z-index: 1000;
     }
+    #notice {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      max-width: 300px;
+      background: rgba(0, 0, 0, 0.75);
+      color: #ccc;
+      font-size: 13px;
+      padding: 10px;
+      border-radius: 6px;
+      z-index: 1001;
+      line-height: 1.4em;
+      display: none;
+    }
     #routeInfo {
       margin-top: 5px;
       font-size: 14px;
@@ -60,6 +76,15 @@
     </select>
     <div id="routeInfo"></div>
   </div>
+
+  <div id="notice">
+    このサイトは位置情報を利用して地図上のルートを探索します。<br>
+    iPhoneの場合は「設定」→「プライバシーとセキュリティ」→「位置情報サービス」から、<br>
+    このサイトを開いているブラウザ（Chrome, Safari など）を選び、<br>
+    「このAppの使用中のみ許可」または「常に許可」を選択して、<br>
+    サイトに戻って位置情報の使用を許可してください。
+  </div>
+
   <div id="map"></div>
 
   <script>
@@ -90,21 +115,21 @@
           const latlng = [pos.coords.latitude, pos.coords.longitude];
           userMarker = L.marker(latlng).addTo(map).bindPopup("現在地").openPopup();
           map.setView(latlng, 15);
+        }, () => {
+          document.getElementById("notice").style.display = "block";
         });
+      } else {
+        document.getElementById("notice").style.display = "block";
       }
 
       const container = map.getContainer();
-
-      // スマホ長押し検出
       container.addEventListener("touchstart", e => {
         touchMoved = false;
         touchStartTime = Date.now();
       });
-
       container.addEventListener("touchmove", () => {
         touchMoved = true;
       });
-
       container.addEventListener("touchend", e => {
         const duration = Date.now() - touchStartTime;
         if (!touchMoved && duration > 600) {
@@ -115,9 +140,6 @@
         }
       });
 
-      // PCマウス長押しは未対応（希望があれば追加可能）
-
-      // 交通手段切り替え
       document.getElementById("modeSelect").addEventListener("change", () => {
         if (destMarker) placeDestination(destMarker.getLatLng());
       });
