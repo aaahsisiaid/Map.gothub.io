@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>地図ピンとルート検索</title>
-
-  <!-- Leaflet -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Leaflet & Routing -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-  <!-- Routing -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
   <!-- EmailJS -->
@@ -19,7 +18,6 @@
     html, body {
       height: 100%;
       margin: 0;
-      padding: 0;
       background-color: #000;
       color: #ccc;
       font-family: sans-serif;
@@ -27,6 +25,7 @@
       -webkit-user-select: none;
       -webkit-touch-callout: none;
       touch-action: manipulation;
+      overflow: hidden;
     }
     #map {
       height: 100%;
@@ -41,29 +40,22 @@
       padding: 10px;
       border-radius: 6px;
       z-index: 1000;
-    }
-    #notice {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      max-width: 300px;
-      background: rgba(0, 0, 0, 0.75);
-      color: #ccc;
-      font-size: 13px;
-      padding: 10px;
-      border-radius: 6px;
-      z-index: 1001;
-      line-height: 1.4em;
-      display: none;
+      font-size: 14px;
     }
     #routeInfo {
       margin-top: 5px;
-      font-size: 14px;
     }
-    select {
-      background: #000;
-      color: #ccc;
-      border: 1px solid #888;
+    #locationError {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #900;
+      color: #fff;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+      z-index: 1001;
     }
   </style>
 </head>
@@ -76,15 +68,10 @@
     </select>
     <div id="routeInfo"></div>
   </div>
-
-  <div id="notice">
-    このサイトは位置情報を利用して地図上のルートを探索します。<br>
-    iPhoneの場合は「設定」→「プライバシーとセキュリティ」→「位置情報サービス」から、<br>
-    このサイトを開いているブラウザ（Chrome, Safari など）を選び、<br>
-    「このAppの使用中のみ許可」または「常に許可」を選択して、<br>
-    サイトに戻って位置情報の使用を許可してください。
+  <div id="locationError">
+    このサイトは位置情報を使い経路を検索します。<br>
+    iPhoneの場合、設定 → 位置情報サービス → 使用中のブラウザ（Safari, Chromeなど）→「このAppの使用中のみ許可」または「常に許可」に設定して戻ってください。
   </div>
-
   <div id="map"></div>
 
   <script>
@@ -92,11 +79,12 @@
 
     let map, userMarker, destMarker, routeControl;
     let touchStartTime = 0;
-    let touchMoved = false;
+    let touchStartPoint = null;
+    const touchThreshold = 400;
+    const maxMoveDistance = 15;
 
     function initMap() {
       map = L.map('map').setView([35.68, 139.76], 13);
-
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
@@ -116,41 +104,65 @@
           userMarker = L.marker(latlng).addTo(map).bindPopup("現在地").openPopup();
           map.setView(latlng, 15);
         }, () => {
-          document.getElementById("notice").style.display = "block";
+          document.getElementById("locationError").style.display = "block";
         });
       } else {
-        document.getElementById("notice").style.display = "block";
+        document.getElementById("locationError").style.display = "block";
       }
 
       const container = map.getContainer();
+
+      // スマホの長押し
       container.addEventListener("touchstart", e => {
-        touchMoved = false;
+        const touch = e.touches[0];
         touchStartTime = Date.now();
+        touchStartPoint = { x: touch.clientX, y: touch.clientY };
       });
-      container.addEventListener("touchmove", () => {
-        touchMoved = true;
-      });
+
       container.addEventListener("touchend", e => {
         const duration = Date.now() - touchStartTime;
-        if (!touchMoved && duration > 600) {
+        if (duration >= touchThreshold) {
           const touch = e.changedTouches[0];
-          const point = map.mouseEventToContainerPoint(touch);
-          const latlng = map.containerPointToLatLng(point);
-          placeDestination(latlng);
+          const dx = touch.clientX - touchStartPoint.x;
+          const dy = touch.clientY - touchStartPoint.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance <= maxMoveDistance) {
+            const point = map.mouseEventToContainerPoint(touch);
+            const latlng = map.containerPointToLatLng(point);
+            placeDestination(latlng);
+          }
         }
       });
 
+      // PCのマウス長押し
+      let mouseTimer;
+      container.addEventListener("mousedown", e => {
+        mouseTimer = setTimeout(() => {
+          const point = map.mouseEventToContainerPoint(e);
+          const latlng = map.containerPointToLatLng(point);
+          placeDestination(latlng);
+        }, 500);
+      });
+      container.addEventListener("mouseup", () => {
+        clearTimeout(mouseTimer);
+      });
+
+      // モード切り替え
       document.getElementById("modeSelect").addEventListener("change", () => {
         if (destMarker) placeDestination(destMarker.getLatLng());
       });
     }
 
     function placeDestination(latlng) {
-      if (!userMarker) return alert("現在地がまだ取得できていません");
+      if (!userMarker) {
+        alert("現在地が取得できていません");
+        return;
+      }
 
       if (destMarker) {
         map.removeLayer(destMarker);
       }
+
       destMarker = L.marker(latlng).addTo(map).bindPopup("目的地").openPopup();
 
       routeControl.setWaypoints([
