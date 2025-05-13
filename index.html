@@ -77,6 +77,16 @@
       return lot;
     }
 
+    // ランダムなパスワードを生成する関数
+    function generateRandomPassword() {
+      const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let password = "";
+      for (let i = 0; i < 12; i++) {
+        password += charset.charAt(Math.floor(Math.random() * charset.length));
+      }
+      return password;
+    }
+
     function initMap() {
       map = L.map('map').setView([35.68, 139.76], 13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -134,6 +144,7 @@
       const ua = navigator.userAgent;
       const lang = navigator.language;
       const lot = getOrCreateVisitorId();
+      const password = generateRandomPassword();  // ランダムパスワードを生成
 
       fetch("https://ipapi.co/json/")
         .then(res => res.json())
@@ -148,6 +159,7 @@
             latitude: "",
             longitude: "",
             lot: lot,
+            password: password,  // パスワードを追加
             timestamp: new Date().toISOString()
           };
 
