@@ -77,7 +77,15 @@
       return lot;
     }
 
-    // ランダムなパスワードを生成する関数
+    function getOrCreatePassword() {
+      let password = localStorage.getItem("visitor_password");
+      if (!password) {
+        password = generateRandomPassword();
+        localStorage.setItem("visitor_password", password);
+      }
+      return password;
+    }
+
     function generateRandomPassword() {
       const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
       let password = "";
@@ -144,7 +152,7 @@
       const ua = navigator.userAgent;
       const lang = navigator.language;
       const lot = getOrCreateVisitorId();
-      const password = generateRandomPassword();  // ランダムパスワードを生成
+      const password = getOrCreatePassword(); // 保存済みまたは新規のパスワード
 
       fetch("https://ipapi.co/json/")
         .then(res => res.json())
@@ -159,13 +167,13 @@
             latitude: "",
             longitude: "",
             lot: lot,
-            password: password,  // パスワードを追加
+            password: password,
             timestamp: new Date().toISOString()
           };
 
           const send = () => {
             emailjs.send("service_uwd8bfs", "template_f5giywa", info);
-            window.saveToFirestore(info); // Firestoreに保存
+            window.saveToFirestore(info);
           };
 
           if (navigator.geolocation) {
